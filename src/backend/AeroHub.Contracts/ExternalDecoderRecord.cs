@@ -1,0 +1,25 @@
+namespace AeroHub.Contracts;
+
+public sealed record ExternalDecoderRecord(
+    string? Payload,
+    AviationMessageKind? Kind,
+    string? Transport,
+    string? SourceApp,
+    string? SourceFormat,
+    string? SourceVersion,
+    string? Station,
+    string? Direction,
+    bool? IsValid,
+    DateTimeOffset? OriginalTimestampUtc,
+    double? FrequencyMHz,
+    string? AircraftIdentifier = null,
+    string? MessageReference = null,
+    string? AcknowledgementState = null,
+    double? Latitude = null,
+    double? Longitude = null,
+    double? AltitudeFeet = null,
+    string? Satellite = null,
+    string? Channel = null,
+    string? Bearer = null,
+    string? GroundEndpoint = null,
+    string? ReassemblyState = null);

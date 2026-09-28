@@ -1,0 +1,17 @@
+:root {
+  font-family: Avenir Next, Verdana, sans-serif;
+  color: #d8e0e4;
+  background: #0f1418;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}

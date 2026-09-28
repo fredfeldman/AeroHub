@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="../../tests/AeroHub.Api.Tests/AeroHub.Api.Tests.csproj" />
+  <Project Path="../../tests/AeroHub.Core.Tests/AeroHub.Core.Tests.csproj" />
+  <Project Path="../../tests/AeroHub.Decoders.Tests/AeroHub.Decoders.Tests.csproj" />
+  <Project Path="AeroHub.Api/AeroHub.Api.csproj" />
+  <Project Path="AeroHub.Contracts/AeroHub.Contracts.csproj" />
+  <Project Path="AeroHub.Core/AeroHub.Core.csproj" />
+  <Project Path="AeroHub.Decoders/AeroHub.Decoders.csproj" />
+  <Project Path="AeroHub.Infrastructure/AeroHub.Infrastructure.csproj" />
+</Solution>
