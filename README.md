@@ -1,14 +1,23 @@
 # AeroHub
 
-AeroHub is planned as an aviation SDR and aircraft-message analysis application. The app will support two equal ingestion paths:
+AeroHub is an aviation SDR and aircraft-message analysis application. Its operator console brings signal-source status, decoded aviation messages, aircraft and radiosonde tracks, import health, and storage operations together in one local web interface.
 
-1. Native decoding from signal sources handled by the .NET backend.
-2. Import of already-decoded data from other applications, normalized through the same backend pipeline.
+The .NET backend owns ingestion, decoding and import adapters, normalization, storage, and real-time updates. The React + TypeScript frontend presents that data and provides operator controls. Native signal processing and already-decoded data imports are designed to feed the same normalized message and track workflows while retaining source provenance and diagnostics.
 
-The first implementation target is a backend/frontend architecture:
+## Operator Console
 
-- .NET backend for hardware access, DSP, decoder modules, import adapters, normalization, storage, and real-time APIs.
-- React + TypeScript frontend for operator workflow, visualization, message inspection, aircraft tracking, imports, and settings.
+- **Live RF:** View spectrum and waterfall displays, stream metrics, source health, and adapter diagnostics. Synthetic replay controls exercise the visualization at 1x, 5x, and 20x speeds.
+- **Messages:** Review recent normalized aviation messages, filter by confidence or warnings, inspect parsed ACARS and datalink fields, and copy the original payload. Message details retain transport, frequency, source, and parser warnings when available.
+- **Aircraft map and tracks:** Browse aircraft and radiosonde positions alongside nearby radio navigation aids. Filter aircraft by class, altitude, position availability, and update age; select an aircraft to inspect it, follow its map position, and view its recent track. Export filtered aircraft data as CSV or GeoJSON.
+- **Imports:** Run the included ACARS, ADS-B/readsb, SATCOM, radiosonde, dumphfdl, and dumpvdl2 sample imports. Accepted and quarantined record counts, source provenance, and import diagnostics are surfaced in the console. A dump1090/readsb network connection can also be configured and monitored.
+- **Decoder and source operations:** Inspect decoder/import state, configure available source and frequency profiles, and view hardware-source and external-decoder health. Adapter diagnostics and simulated failure/reconnect scenarios help exercise operational status handling.
+- **WEFAX:** Inspect image lines and sync status, adjust polarity and slant, and replay complete or partial sample transmissions.
+- **Settings and storage:** Persist decoder, frequency, import, and feeder settings; inspect storage counts and health; export a data snapshot; and apply configured retention operations.
+- **Live status:** Backend health, SignalR connectivity, warnings, queue metrics, import activity, and recent operator actions are visible alongside the feature panels.
+
+## Current Scope
+
+The console and backend workflows are implemented, but not every control represents a completed live RF decoder. Spectrum/waterfall and WEFAX replay are synthetic. The current hardware-source manager and external-decoder lifecycle controls include simulated behavior; connecting a source in the UI should not be taken as proof of live demodulation. Several import buttons load repository sample fixtures. Check the source state, diagnostics, and provenance shown in AeroHub when evaluating a particular data path.
 
 ## Current Plans
 
