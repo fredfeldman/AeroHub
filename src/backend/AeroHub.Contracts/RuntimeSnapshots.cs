@@ -52,7 +52,10 @@ public sealed record AircraftTrackSnapshot(
     string? AircraftType = null,
     string? Registration = null,
     string? OperatorName = null,
-    bool IsMilitary = false);
+    bool IsMilitary = false,
+    string? RemoteIdSerialNumber = null,
+    string? RemoteIdOperatorId = null,
+    string? RemoteIdOperationType = null);
 
 public sealed record AircraftPositionSample(
     string AircraftIdentifier,

@@ -59,6 +59,33 @@ public class ImportManagerTests
     }
 
     [Fact]
+    public async Task StartImportAsync_creates_remote_id_drone_tracks_and_quarantines_bad_records()
+    {
+        var clock = new TestClock();
+        var trackStore = new InMemoryAircraftTrackStore(clock);
+        var importManager = new FileNdjsonImportManager(new InMemoryMessageBus(), clock, new AcarsMessageParser(), trackStore, new NullAircraftRegistryLookup());
+
+        var result = await importManager.StartImportAsync("local-remote-id-json");
+        var tracks = trackStore.GetCurrentTracks();
+        var diagnostics = importManager.GetDiagnostics(20);
+
+        Assert.Equal(2, result.AcceptedRecords);
+        Assert.Equal(3, result.RejectedRecords);
+        Assert.Equal(2, tracks.Count);
+        var drone = Assert.Single(tracks, track => track.RemoteIdSerialNumber == "RID-COM-1042");
+        Assert.Equal("RID:RID-COM-1042", drone.AircraftIdentifier);
+        Assert.Equal("OPERATOR-7K4M", drone.RemoteIdOperatorId);
+        Assert.Equal("Commercial", drone.RemoteIdOperationType);
+        Assert.Equal("Remote ID drone", drone.SourceType);
+        Assert.Equal(118.4 * 3.28084, drone.AltitudeFeet!.Value, precision: 3);
+        Assert.Equal(8.2 * 1.943844, drone.GroundSpeedKnots!.Value, precision: 3);
+        Assert.All(tracks, track => Assert.Equal(IngestionPath.ImportedDecodedData, track.Provenance.Path));
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "IMPORT_DUPLICATE_RECORD");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "IMPORT_REMOTE_ID_INVALID_POSITION");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "IMPORT_SCHEMA_MISMATCH");
+    }
+
+    [Fact]
     public async Task StartImportAsync_creates_sonde_tracks_and_quarantines_bad_sonde_records()
     {
         var clock = new TestClock();

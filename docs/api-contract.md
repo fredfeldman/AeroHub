@@ -22,6 +22,7 @@ This document is the editable contract sketch for Sprint 0. Sprint 1 and Sprint 
 - `POST /api/decoders/{decoderId}/stop`: stop a decoder.
 - `GET /api/messages`: query normalized messages.
 - `GET /api/aircraft`: query current aircraft tracks.
+- `POST /api/imports/local-remote-id-json/start`: import the bundled Remote ID sample into the shared aircraft-track store.
 - `GET /api/settings`: retrieve settings.
 - `PUT /api/settings`: update settings.
 
@@ -36,6 +37,7 @@ This document is the editable contract sketch for Sprint 0. Sprint 1 and Sprint 
 - `message.snapshot`: recent normalized aviation messages sent to a single SignalR caller.
 - `aircraft.updated`: aircraft track or observation changed.
 - `aircraft.snapshot`: current non-stale aircraft tracks sent to a single SignalR caller.
+- Remote ID tracks are included in `GET /api/aircraft` and the `aircraft.updated` / `aircraft.snapshot` events. Their identifiers use the `RID:` prefix and include Remote ID serial, operator, and operation-type metadata.
 - `spectrum.frame`: reduced FFT/spectrum frame.
 - `waterfall.rows`: one or more coalesced waterfall rows.
 - `stream.metrics`: synthetic or live stream metrics changed.

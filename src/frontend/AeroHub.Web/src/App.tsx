@@ -62,6 +62,10 @@ const GOVERNMENT_OPERATOR_PATTERN = /UNITED STATES|\bU\.?S\.?\b|FEDERAL|CUSTOMS|
 const COMMERCIAL_CALLSIGN_PATTERN = /^[A-Z]{3}\d/
 
 function classifyAircraft(track: AircraftTrack): AircraftClass {
+  if (track.remoteIdOperationType?.toUpperCase() === 'COMMERCIAL') {
+    return 'Commercial'
+  }
+
   const operator = track.operatorName?.toUpperCase().trim() ?? ''
 
   if (track.isMilitary || MILITARY_OPERATOR_PATTERN.test(operator)) {
@@ -455,6 +459,9 @@ type AircraftTrack = {
   registration?: string
   operatorName?: string
   isMilitary?: boolean
+  remoteIdSerialNumber?: string
+  remoteIdOperatorId?: string
+  remoteIdOperationType?: string
   provenance: {
     path: string
     sourceId: string
@@ -728,6 +735,7 @@ function App() {
   const [waterfallRows, setWaterfallRows] = useState<WaterfallRow[]>([])
   const [streamMetrics, setStreamMetrics] = useState<StreamMetrics | null>(null)
   const [aircraftTracks, setAircraftTracks] = useState<AircraftTrack[]>([])
+  const [remoteIdImportState, setRemoteIdImportState] = useState('Idle')
   const [sondeTracks, setSondeTracks] = useState<SondeTrack[]>([])
   const [navaids, setNavaids] = useState<Navaid[]>([])
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null)
@@ -1175,6 +1183,27 @@ function App() {
       await refreshStorageSnapshot()
     } catch (error) {
       setAdsbImportState(error instanceof Error ? error.message : 'ADS-B import failed')
+    }
+  }
+
+  async function startRemoteIdImport() {
+    setRemoteIdImportState('Importing Remote ID reports')
+
+    try {
+      const response = await fetch('/api/imports/local-remote-id-json/start', { method: 'POST' })
+
+      if (!response.ok) {
+        throw new Error(`Remote ID import failed with ${response.status}`)
+      }
+
+      const result = (await response.json()) as { acceptedRecords: number; rejectedRecords: number }
+      setRemoteIdImportState(`${result.acceptedRecords} drone tracks / ${result.rejectedRecords} quarantined`)
+      await refreshAircraftTracks()
+      await refreshImports()
+      await refreshImportDiagnostics()
+      await refreshStorageSnapshot()
+    } catch (error) {
+      setRemoteIdImportState(error instanceof Error ? error.message : 'Remote ID import failed')
     }
   }
 
@@ -2048,6 +2077,8 @@ function App() {
           </article>
 
           <RadioSondePanel sondes={sondeTracks} actionState={radiosondeImportState} onStartImport={startRadiosondeImport} />
+
+          <CommercialDronePanel tracks={aircraftTracks} actionState={remoteIdImportState} onStartImport={startRemoteIdImport} />
 
           <article className="panel wefax-panel" id="wefax">
             <div className="panel-heading">
@@ -3423,6 +3454,50 @@ function RadioSondePanel({
               </div>
             )
           })}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function CommercialDronePanel({
+  tracks,
+  actionState,
+  onStartImport,
+}: {
+  tracks: AircraftTrack[]
+  actionState: string
+  onStartImport: () => void
+}) {
+  const drones = sortAircraftTracks(tracks.filter((track) => track.remoteIdSerialNumber))
+
+  return (
+    <article className="panel" id="commercial-drones">
+      <div className="panel-heading">
+        <h2>Commercial Drone Tracking</h2>
+        <span>{drones.length} active drone(s)</span>
+      </div>
+      <p className="panel-copy">
+        Remote ID position reports appear on the aircraft map and in this list. Live tracking requires a compatible receiver or feed.
+      </p>
+      <button className="action secondary" type="button" onClick={onStartImport}>
+        Import Remote ID Sample
+      </button>
+      <p className="panel-copy status-line">{actionState}</p>
+      {drones.length === 0 ? (
+        <p className="empty-state">No Remote ID drone reports available.</p>
+      ) : (
+        <div className="aircraft-table" aria-label="Commercial drone tracks">
+          {drones.map((drone) => (
+            <div key={drone.aircraftIdentifier} className={drone.isStale ? 'aircraft-row stale' : 'aircraft-row'}>
+              <strong>{drone.remoteIdSerialNumber}</strong>
+              <span>{drone.remoteIdOperationType ?? 'Operation type unknown'} / {drone.confidence}</span>
+              <span>Operator ID: {drone.remoteIdOperatorId ?? 'Not provided'}</span>
+              <span>{formatCoordinate(drone.latitude, drone.longitude)} / {drone.altitudeFeet?.toLocaleString() ?? 'n/a'} ft</span>
+              <span>{drone.groundSpeedKnots?.toFixed(0) ?? 'n/a'} kt / {drone.trackDegrees?.toFixed(0) ?? 'n/a'} deg</span>
+              <small>{formatAge(drone.updatedAtUtc)} / {drone.provenance.sourceApp ?? 'unknown source'}</small>
+            </div>
+          ))}
         </div>
       )}
     </article>
