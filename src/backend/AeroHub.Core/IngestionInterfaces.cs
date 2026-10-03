@@ -64,6 +64,15 @@ public interface IAircraftTrackStore
     bool Upsert(AircraftTrackSnapshot track);
 }
 
+public interface IRemoteIdObservationStore
+{
+    event EventHandler<RemoteIdObservation>? ObservationReceived;
+
+    IReadOnlyList<RemoteIdObservation> GetRecent(int limit);
+
+    void Add(RemoteIdObservation observation);
+}
+
 public interface ISondeTrackStore
 {
     event EventHandler<SondeTelemetrySnapshot>? TrackUpdated;

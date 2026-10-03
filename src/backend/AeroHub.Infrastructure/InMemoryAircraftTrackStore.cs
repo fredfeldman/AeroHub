@@ -33,9 +33,14 @@ public sealed class InMemoryAircraftTrackStore(IClock clock, IRecordStore? recor
 
         lock (_gate)
         {
-            if (_tracks.TryGetValue(track.AircraftIdentifier, out var existing) && existing.UpdatedAtUtc >= track.UpdatedAtUtc)
+            if (_tracks.TryGetValue(track.AircraftIdentifier, out var existing))
             {
-                return false;
+                if (existing.UpdatedAtUtc >= track.UpdatedAtUtc)
+                {
+                    return false;
+                }
+
+                track = MergeRemoteIdMetadata(existing, track);
             }
 
             normalized = ApplyStaleState(track);
@@ -57,6 +62,26 @@ public sealed class InMemoryAircraftTrackStore(IClock clock, IRecordStore? recor
 
         TrackUpdated?.Invoke(this, normalized);
         return true;
+    }
+
+    private static AircraftTrackSnapshot MergeRemoteIdMetadata(AircraftTrackSnapshot existing, AircraftTrackSnapshot incoming)
+    {
+        if (!string.Equals(existing.SourceType, "Remote ID drone", StringComparison.Ordinal)
+            || !string.Equals(incoming.SourceType, "Remote ID drone", StringComparison.Ordinal))
+        {
+            return incoming;
+        }
+
+        return incoming with
+        {
+            RemoteIdSerialNumber = incoming.RemoteIdSerialNumber ?? existing.RemoteIdSerialNumber,
+            RemoteIdOperatorId = incoming.RemoteIdOperatorId ?? existing.RemoteIdOperatorId,
+            RemoteIdOperationType = incoming.RemoteIdOperationType ?? existing.RemoteIdOperationType,
+            RemoteIdUasIdType = incoming.RemoteIdUasIdType ?? existing.RemoteIdUasIdType,
+            RemoteIdUaType = incoming.RemoteIdUaType ?? existing.RemoteIdUaType,
+            RemoteIdOperatorIdType = incoming.RemoteIdOperatorIdType ?? existing.RemoteIdOperatorIdType,
+            RemoteIdOperationTypeSource = incoming.RemoteIdOperationTypeSource ?? existing.RemoteIdOperationTypeSource
+        };
     }
 
     private AircraftTrackSnapshot ApplyStaleState(AircraftTrackSnapshot track)

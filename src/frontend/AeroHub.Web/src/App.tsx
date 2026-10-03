@@ -462,6 +462,26 @@ type AircraftTrack = {
   remoteIdSerialNumber?: string
   remoteIdOperatorId?: string
   remoteIdOperationType?: string
+  remoteIdOperationTypeSource?: string
+  remoteIdUasIdType?: string
+  remoteIdUaType?: string
+  remoteIdOperatorIdType?: number
+  remoteIdMessageType?: string
+  remoteIdAltitudeGeodeticMeters?: number
+  remoteIdHeightAboveGroundMeters?: number
+  remoteIdAltitudeBarometricMeters?: number
+  remoteIdAltitudeReference?: string
+  remoteIdVerticalSpeedMetersPerSecond?: number
+  remoteIdHorizontalAccuracyMeters?: number
+  remoteIdVerticalAccuracyMeters?: number
+  remoteIdSpeedAccuracyMetersPerSecond?: number
+  remoteIdDirectionAccuracyDegrees?: number
+  remoteIdBroadcastAtUtc?: string
+  remoteIdRadio?: string
+  remoteIdSourceMac?: string
+  remoteIdChannel?: number
+  remoteIdRssi?: number
+  remoteIdReceiverId?: string
   provenance: {
     path: string
     sourceId: string
@@ -470,6 +490,49 @@ type AircraftTrack = {
     sourceFormat?: string
     rawReference: string
   }
+}
+
+type RemoteIdObservation = {
+  id: string
+  uasId?: string
+  uasIdType?: string
+  uaType?: string
+  operatorId?: string
+  operatorIdType?: number
+  operationType?: string
+  operationTypeSource?: string
+  messageType: string
+  broadcastAtUtc?: string
+  receivedAtUtc: string
+  latitude?: number
+  longitude?: number
+  altitudeGeodeticMeters?: number
+  heightAboveGroundMeters?: number
+  altitudeBarometricMeters?: number
+  altitudeReference?: string
+  groundSpeedMetersPerSecond?: number
+  headingDegrees?: number
+  verticalSpeedMetersPerSecond?: number
+  horizontalAccuracyMeters?: number
+  verticalAccuracyMeters?: number
+  speedAccuracyMetersPerSecond?: number
+  directionAccuracyDegrees?: number
+  operatorLatitude?: number
+  operatorLongitude?: number
+  areaCount?: number
+  areaRadiusMeters?: number
+  areaCeilingMeters?: number
+  areaFloorMeters?: number
+  selfIdText?: string
+  authenticationStatus?: string
+  authenticationVerifiedBySource?: boolean
+  radio?: string
+  rssi?: number
+  channel?: number
+  receiverId?: string
+  sourceMac?: string
+  validationStatus?: string
+  validationWarnings: string[]
 }
 
 type SondeTrack = {
@@ -735,6 +798,7 @@ function App() {
   const [waterfallRows, setWaterfallRows] = useState<WaterfallRow[]>([])
   const [streamMetrics, setStreamMetrics] = useState<StreamMetrics | null>(null)
   const [aircraftTracks, setAircraftTracks] = useState<AircraftTrack[]>([])
+  const [remoteIdObservations, setRemoteIdObservations] = useState<RemoteIdObservation[]>([])
   const [remoteIdImportState, setRemoteIdImportState] = useState('Idle')
   const [sondeTracks, setSondeTracks] = useState<SondeTrack[]>([])
   const [navaids, setNavaids] = useState<Navaid[]>([])
@@ -847,7 +911,7 @@ function App() {
 
     async function loadStartupState() {
       try {
-        const [healthResponse, operatorResponse, sourcesResponse, decodersResponse, importsResponse, diagnosticsResponse, messagesResponse, streamMetricsResponse, aircraftResponse, externalResponse, externalDiagnosticsResponse, wefaxResponse, storageResponse, hardwareSourcesResponse, hardwareDiagnosticsResponse, dump1090StatusResponse, dump1090DiagnosticsResponse, sondesResponse, navaidsResponse, feedersResponse, feederDiagnosticsResponse, settingsResponse] = await Promise.all([
+        const [healthResponse, operatorResponse, sourcesResponse, decodersResponse, importsResponse, diagnosticsResponse, messagesResponse, streamMetricsResponse, aircraftResponse, remoteIdObservationsResponse, externalResponse, externalDiagnosticsResponse, wefaxResponse, storageResponse, hardwareSourcesResponse, hardwareDiagnosticsResponse, dump1090StatusResponse, dump1090DiagnosticsResponse, sondesResponse, navaidsResponse, feedersResponse, feederDiagnosticsResponse, settingsResponse] = await Promise.all([
           fetch('/api/health', { signal: controller.signal }),
           fetch('/api/diagnostics/operator', { signal: controller.signal }),
           fetch('/api/sources', { signal: controller.signal }),
@@ -857,6 +921,7 @@ function App() {
           fetch('/api/messages/recent', { signal: controller.signal }),
           fetch('/api/streams/synthetic/metrics', { signal: controller.signal }),
           fetch('/api/aircraft', { signal: controller.signal }),
+          fetch('/api/remote-id/observations?limit=100', { signal: controller.signal }),
           fetch('/api/external-decoders', { signal: controller.signal }),
           fetch('/api/external-decoders/diagnostics', { signal: controller.signal }),
           fetch('/api/wefax/state', { signal: controller.signal }),
@@ -887,6 +952,7 @@ function App() {
         setMessages(messagesResponse.ok ? sortMessages((await messagesResponse.json()) as NormalizedAviationMessage[]) : [])
         setStreamMetrics(streamMetricsResponse.ok ? ((await streamMetricsResponse.json()) as StreamMetrics) : null)
         setAircraftTracks(aircraftResponse.ok ? sortAircraftTracks((await aircraftResponse.json()) as AircraftTrack[]) : [])
+        setRemoteIdObservations(remoteIdObservationsResponse.ok ? sortRemoteIdObservations((await remoteIdObservationsResponse.json()) as RemoteIdObservation[]) : [])
         setExternalProcesses(externalResponse.ok ? sortExternalProcesses((await externalResponse.json()) as ExternalDecoderProcess[]) : [])
         setExternalDiagnostics(externalDiagnosticsResponse.ok ? sortExternalDiagnostics((await externalDiagnosticsResponse.json()) as ExternalDecoderDiagnostic[]) : [])
         setWefaxState(wefaxResponse.ok ? ((await wefaxResponse.json()) as WefaxDecoderState) : null)
@@ -967,6 +1033,14 @@ function App() {
 
     connection.on('aircraft.updated', (track: AircraftTrack) => {
       setAircraftTracks((current) => sortAircraftTracks([track, ...current.filter((item) => item.aircraftIdentifier !== track.aircraftIdentifier)]))
+    })
+
+    connection.on('remote-id.observation.snapshot', (snapshot: RemoteIdObservation[]) => {
+      setRemoteIdObservations(sortRemoteIdObservations(snapshot))
+    })
+
+    connection.on('remote-id.observation', (observation: RemoteIdObservation) => {
+      setRemoteIdObservations((current) => sortRemoteIdObservations([observation, ...current.filter((item) => item.id !== observation.id)]).slice(0, 100))
     })
 
     connection.on('sonde.snapshot', (snapshot: SondeTrack[]) => {
@@ -1084,6 +1158,7 @@ function App() {
       await connection.invoke('GetRecentImportDiagnostics', 50)
       await connection.invoke('GetStreamMetrics')
       await connection.invoke('GetAircraftTracks')
+      await connection.invoke('GetRemoteIdObservations', 100)
       await connection.invoke('GetSondeTracks')
       await connection.invoke('GetExternalDecoderProcesses')
       await connection.invoke('GetExternalDecoderDiagnostics', 50)
@@ -1199,6 +1274,7 @@ function App() {
       const result = (await response.json()) as { acceptedRecords: number; rejectedRecords: number }
       setRemoteIdImportState(`${result.acceptedRecords} drone tracks / ${result.rejectedRecords} quarantined`)
       await refreshAircraftTracks()
+      await refreshRemoteIdObservations()
       await refreshImports()
       await refreshImportDiagnostics()
       await refreshStorageSnapshot()
@@ -1551,6 +1627,14 @@ function App() {
 
     if (response.ok) {
       setAircraftTracks(sortAircraftTracks((await response.json()) as AircraftTrack[]))
+    }
+  }
+
+  async function refreshRemoteIdObservations() {
+    const response = await fetch('/api/remote-id/observations?limit=100')
+
+    if (response.ok) {
+      setRemoteIdObservations(sortRemoteIdObservations((await response.json()) as RemoteIdObservation[]))
     }
   }
 
@@ -2078,7 +2162,7 @@ function App() {
 
           <RadioSondePanel sondes={sondeTracks} actionState={radiosondeImportState} onStartImport={startRadiosondeImport} />
 
-          <CommercialDronePanel tracks={aircraftTracks} actionState={remoteIdImportState} onStartImport={startRemoteIdImport} />
+          <CommercialDronePanel tracks={aircraftTracks} observations={remoteIdObservations} actionState={remoteIdImportState} onStartImport={startRemoteIdImport} />
 
           <article className="panel wefax-panel" id="wefax">
             <div className="panel-heading">
@@ -3311,6 +3395,10 @@ function sortAircraftTracks(tracks: AircraftTrack[]) {
   return [...tracks].sort((left, right) => (left.callsign ?? left.aircraftIdentifier).localeCompare(right.callsign ?? right.aircraftIdentifier))
 }
 
+function sortRemoteIdObservations(observations: RemoteIdObservation[]) {
+  return [...observations].sort((left, right) => right.receivedAtUtc.localeCompare(left.receivedAtUtc))
+}
+
 function ExternalDecoderPanel({
   processes,
   diagnostics,
@@ -3462,10 +3550,12 @@ function RadioSondePanel({
 
 function CommercialDronePanel({
   tracks,
+  observations,
   actionState,
   onStartImport,
 }: {
   tracks: AircraftTrack[]
+  observations: RemoteIdObservation[]
   actionState: string
   onStartImport: () => void
 }) {
@@ -3493,9 +3583,33 @@ function CommercialDronePanel({
               <strong>{drone.remoteIdSerialNumber}</strong>
               <span>{drone.remoteIdOperationType ?? 'Operation type unknown'} / {drone.confidence}</span>
               <span>Operator ID: {drone.remoteIdOperatorId ?? 'Not provided'}</span>
-              <span>{formatCoordinate(drone.latitude, drone.longitude)} / {drone.altitudeFeet?.toLocaleString() ?? 'n/a'} ft</span>
+              <span>{formatCoordinate(drone.latitude, drone.longitude)} / Geodetic: {drone.remoteIdAltitudeGeodeticMeters?.toFixed(1) ?? 'n/a'} m / AGL: {drone.remoteIdHeightAboveGroundMeters?.toFixed(1) ?? 'n/a'} m</span>
               <span>{drone.groundSpeedKnots?.toFixed(0) ?? 'n/a'} kt / {drone.trackDegrees?.toFixed(0) ?? 'n/a'} deg</span>
               <small>{formatAge(drone.updatedAtUtc)} / {drone.provenance.sourceApp ?? 'unknown source'}</small>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="panel-heading compact-heading">
+        <h3>Recent Remote ID Messages</h3>
+        <span>{observations.length}</span>
+      </div>
+      {observations.length === 0 ? (
+        <p className="empty-state">No Remote ID observations received.</p>
+      ) : (
+        <div className="aircraft-table" aria-label="Recent Remote ID observations">
+          {observations.slice(0, 12).map((observation) => (
+            <div key={observation.id} className="aircraft-row">
+              <strong>{observation.messageType} / {observation.uasId ?? 'UAS ID unavailable'}</strong>
+              <span>{observation.uasIdType ?? 'ID type unknown'} / {observation.uaType ?? 'UA type unknown'} / Operator: {observation.operatorId ?? 'n/a'}</span>
+              <span>{formatCoordinate(observation.latitude, observation.longitude)} / Geodetic: {observation.altitudeGeodeticMeters?.toFixed(1) ?? 'n/a'} m / AGL: {observation.heightAboveGroundMeters?.toFixed(1) ?? 'n/a'} m</span>
+              <span>{observation.groundSpeedMetersPerSecond?.toFixed(1) ?? 'n/a'} m/s / {observation.headingDegrees?.toFixed(0) ?? 'n/a'} deg / vertical {observation.verticalSpeedMetersPerSecond?.toFixed(1) ?? 'n/a'} m/s</span>
+              <span>{observation.radio ?? 'radio unknown'} / ch {observation.channel ?? 'n/a'} / {observation.rssi?.toFixed(0) ?? 'n/a'} dBm / {observation.receiverId ?? 'receiver unknown'}</span>
+              <span>System area: {observation.areaCount ?? 'n/a'} / radius {observation.areaRadiusMeters?.toFixed(0) ?? 'n/a'} m / floor {observation.areaFloorMeters?.toFixed(0) ?? 'n/a'} m / ceiling {observation.areaCeilingMeters?.toFixed(0) ?? 'n/a'} m</span>
+              <small>Accuracy: horizontal {observation.horizontalAccuracyMeters?.toFixed(1) ?? 'n/a'} m / vertical {observation.verticalAccuracyMeters?.toFixed(1) ?? 'n/a'} m / speed {observation.speedAccuracyMetersPerSecond?.toFixed(1) ?? 'n/a'} m/s / direction {observation.directionAccuracyDegrees?.toFixed(0) ?? 'n/a'} deg</small>
+              {observation.selfIdText ? <small>Self-ID: {observation.selfIdText}</small> : null}
+              <small>{formatTime(observation.receivedAtUtc)} / {observation.validationStatus ?? 'validation unknown'} / authentication: {observation.authenticationStatus ?? 'not reported'} / source reports verified: {observation.authenticationVerifiedBySource === undefined ? 'unknown' : observation.authenticationVerifiedBySource ? 'yes' : 'no'}</small>
+              {observation.validationWarnings.length > 0 ? <small>Warnings: {observation.validationWarnings.join('; ')}</small> : null}
             </div>
           ))}
         </div>

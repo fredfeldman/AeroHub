@@ -13,7 +13,8 @@ public sealed class FileNdjsonImportManager(
     IAircraftTrackStore aircraftTrackStore,
     IAircraftRegistryLookup aircraftRegistryLookup,
     IRecordStore? recordStore = null,
-    ISondeTrackStore? sondeTrackStore = null) : IImportManager
+    ISondeTrackStore? sondeTrackStore = null,
+    IRemoteIdObservationStore? remoteIdObservationStore = null) : IImportManager
 {
     private const int MaximumDiagnostics = 200;
     private const int MaximumRecordBytes = 4096;
@@ -384,7 +385,7 @@ public sealed class FileNdjsonImportManager(
         var accepted = 0;
         var rejected = 0;
         var fixturePath = FindFixturePath("remote-id", "commercial-drone-sample.ndjson");
-        var seenSerialNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenObservationIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var lineNumber = 0;
 
         foreach (var line in await File.ReadAllLinesAsync(fixturePath, cancellationToken))
@@ -419,81 +420,159 @@ public sealed class FileNdjsonImportManager(
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(record?.SerialNumber))
+            var uasId = string.IsNullOrWhiteSpace(record?.UasId) ? record?.SerialNumber : record.UasId;
+
+            if (record is null || string.IsNullOrWhiteSpace(uasId))
             {
                 rejected++;
-                AddDiagnostic(importId, "Warning", "IMPORT_SCHEMA_MISMATCH", "Remote ID record is missing a serial number and was quarantined.", rawReference);
+                AddDiagnostic(importId, "Warning", "IMPORT_SCHEMA_MISMATCH", "Remote ID record is missing a UAS ID and was quarantined.", rawReference);
                 continue;
             }
 
-            var serialNumber = record.SerialNumber.Trim();
+            uasId = uasId.Trim();
+            var messageType = string.IsNullOrWhiteSpace(record.MessageType) ? "Unknown" : record.MessageType.Trim();
+            var observationId = string.IsNullOrWhiteSpace(record.ObservationId) ? null : record.ObservationId.Trim();
 
-            if (!seenSerialNumbers.Add(serialNumber))
+            if (observationId is not null && !seenObservationIds.Add(observationId))
             {
                 rejected++;
-                AddDiagnostic(importId, "Warning", "IMPORT_DUPLICATE_RECORD", $"Remote ID drone {serialNumber} duplicated an earlier record in the same import run and was quarantined.", rawReference);
+                AddDiagnostic(importId, "Warning", "IMPORT_DUPLICATE_RECORD", $"Remote ID observation {observationId} for {uasId} duplicated an earlier record in the same import run and was quarantined.", rawReference);
                 continue;
             }
 
-            if (record.SeenSeconds is > 120)
+            var hasPosition = record.Latitude.HasValue || record.Longitude.HasValue;
+
+            if (hasPosition && record.SeenSeconds is > 120)
             {
                 rejected++;
-                AddDiagnostic(importId, "Warning", "IMPORT_REMOTE_ID_STALE", $"Remote ID drone {serialNumber} position is stale and was quarantined.", rawReference);
+                AddDiagnostic(importId, "Warning", "IMPORT_REMOTE_ID_STALE", $"Remote ID observation for {uasId} is stale and was quarantined.", rawReference);
                 continue;
             }
 
-            if (!IsValidCoordinate(record.Latitude, record.Longitude))
+            if (hasPosition && !IsValidCoordinate(record.Latitude, record.Longitude))
             {
                 rejected++;
-                AddDiagnostic(importId, "Warning", "IMPORT_REMOTE_ID_INVALID_POSITION", $"Remote ID drone {serialNumber} has invalid coordinates and was quarantined.", rawReference);
+                AddDiagnostic(importId, "Warning", "IMPORT_REMOTE_ID_INVALID_POSITION", $"Remote ID observation for {uasId} has invalid coordinates and was quarantined.", rawReference);
                 continue;
             }
 
             var receivedAtUtc = clock.UtcNow;
             var updatedAtUtc = record.OriginalTimestampUtc ?? receivedAtUtc - TimeSpan.FromSeconds(record.SeenSeconds ?? 0);
             var operationType = string.IsNullOrWhiteSpace(record.OperationType) ? null : record.OperationType.Trim();
+            var serialNumber = string.IsNullOrWhiteSpace(record.SerialNumber) ? null : record.SerialNumber.Trim();
+            var provenance = new IngestionProvenance(
+                IngestionPath.ImportedDecodedData,
+                importId,
+                "Local Remote ID commercial drone sample",
+                record.SourceApp ?? "remote-id-receiver",
+                record.SourceFormat ?? "application/x-ndjson; domain=remote-id",
+                "FileNdjsonImportManager",
+                "0.2.0",
+                record.OriginalTimestampUtc,
+                receivedAtUtc,
+                rawReference);
+
+            remoteIdObservationStore?.Add(new RemoteIdObservation(
+                $"{importId}:{observationId ?? lineNumber.ToString()}",
+                uasId,
+                record.UasIdType,
+                record.UaType,
+                record.OperatorId,
+                record.OperatorIdType,
+                operationType,
+                record.OperationTypeSource,
+                messageType,
+                record.OriginalTimestampUtc,
+                receivedAtUtc,
+                record.Latitude,
+                record.Longitude,
+                record.AltitudeBarometricMeters,
+                record.AltitudeGeodeticMeters,
+                record.HeightAboveGroundMeters,
+                record.AltitudeReference,
+                record.SpeedMetersPerSecond,
+                record.DirectionDegrees,
+                record.VerticalSpeedMetersPerSecond,
+                record.HorizontalAccuracyMeters,
+                record.VerticalAccuracyMeters,
+                record.SpeedAccuracyMetersPerSecond,
+                record.DirectionAccuracyDegrees,
+                record.OperatorLatitude,
+                record.OperatorLongitude,
+                record.AreaCount,
+                record.AreaRadiusMeters,
+                record.AreaCeilingMeters,
+                record.AreaFloorMeters,
+                record.SelfIdText,
+                record.AuthenticationStatus,
+                record.AuthenticationVerifiedBySource,
+                record.Radio,
+                record.Rssi,
+                record.Channel,
+                record.ReceiverId,
+                record.SourceMac,
+                record.ValidationStatus,
+                record.ValidationWarnings ?? [],
+                record.RawPayload,
+                rawReference,
+                provenance));
+
+            accepted++;
+
+            if (!hasPosition)
+            {
+                AddDiagnostic(importId, "Info", "IMPORT_RECORD_ACCEPTED", $"Retained Remote ID {messageType} observation for {uasId}; no position was supplied.", rawReference);
+                continue;
+            }
+
             var track = new AircraftTrackSnapshot(
-                $"RID:{serialNumber}",
+                $"RID:{uasId}",
                 updatedAtUtc,
                 record.Latitude,
                 record.Longitude,
-                record.AltitudeMeters * 3.28084,
+                null,
                 importId,
                 ParserConfidence.Observed,
-                serialNumber,
+                null,
                 record.SpeedMetersPerSecond * 1.943844,
                 record.DirectionDegrees,
                 "Remote ID drone",
-                $"rid-{serialNumber}",
+                $"rid-{uasId}",
                 false,
-                new IngestionProvenance(
-                    IngestionPath.ImportedDecodedData,
-                    importId,
-                    "Local Remote ID commercial drone sample",
-                    record.SourceApp ?? "remote-id-receiver",
-                    record.SourceFormat ?? "application/x-ndjson; domain=remote-id",
-                    "FileNdjsonImportManager",
-                    "0.1.0",
-                    record.OriginalTimestampUtc,
-                    receivedAtUtc,
-                    rawReference),
-                EmitterCategory: "DRONE",
+                provenance,
                 AircraftType: "Remote ID UAS",
-                OperatorName: string.IsNullOrWhiteSpace(record.OperatorId) ? null : record.OperatorId.Trim(),
+                OperatorName: null,
                 RemoteIdSerialNumber: serialNumber,
                 RemoteIdOperatorId: string.IsNullOrWhiteSpace(record.OperatorId) ? null : record.OperatorId.Trim(),
-                RemoteIdOperationType: operationType);
+                RemoteIdOperationType: operationType,
+                RemoteIdUasIdType: record.UasIdType,
+                RemoteIdUaType: record.UaType,
+                RemoteIdOperatorIdType: record.OperatorIdType,
+                RemoteIdOperationTypeSource: record.OperationTypeSource,
+                RemoteIdMessageType: messageType,
+                RemoteIdAltitudeGeodeticMeters: record.AltitudeGeodeticMeters,
+                RemoteIdHeightAboveGroundMeters: record.HeightAboveGroundMeters,
+                RemoteIdAltitudeBarometricMeters: record.AltitudeBarometricMeters,
+                RemoteIdAltitudeReference: record.AltitudeReference,
+                RemoteIdVerticalSpeedMetersPerSecond: record.VerticalSpeedMetersPerSecond,
+                RemoteIdHorizontalAccuracyMeters: record.HorizontalAccuracyMeters,
+                RemoteIdVerticalAccuracyMeters: record.VerticalAccuracyMeters,
+                RemoteIdSpeedAccuracyMetersPerSecond: record.SpeedAccuracyMetersPerSecond,
+                RemoteIdDirectionAccuracyDegrees: record.DirectionAccuracyDegrees,
+                RemoteIdBroadcastAtUtc: record.OriginalTimestampUtc,
+                RemoteIdRadio: record.Radio,
+                RemoteIdSourceMac: record.SourceMac,
+                RemoteIdChannel: record.Channel,
+                RemoteIdRssi: record.Rssi,
+                RemoteIdReceiverId: record.ReceiverId);
 
-            if (aircraftTrackStore.Upsert(track))
+            if (!aircraftTrackStore.Upsert(track))
             {
-                accepted++;
-                AddDiagnostic(importId, "Info", "IMPORT_RECORD_ACCEPTED", $"Imported Remote ID drone {serialNumber}.", rawReference);
+                AddDiagnostic(importId, "Warning", "IMPORT_OUT_OF_ORDER", $"Remote ID observation for {uasId} was retained, but its position did not replace the newer current track.", rawReference);
+                continue;
             }
-            else
-            {
-                rejected++;
-                AddDiagnostic(importId, "Warning", "IMPORT_OUT_OF_ORDER", $"Remote ID drone {serialNumber} update was older than the current track and was quarantined.", rawReference);
-            }
+
+            AddDiagnostic(importId, "Info", "IMPORT_RECORD_ACCEPTED", $"Imported Remote ID {messageType} observation for {uasId}.", rawReference);
         }
 
         SetState(importId, SourceState.Online, accepted, rejected, rejected == 0 ? null : $"{rejected} record(s) quarantined");

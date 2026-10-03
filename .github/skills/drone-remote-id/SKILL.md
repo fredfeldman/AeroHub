@@ -16,10 +16,15 @@ Keep the processing boundary explicit:
 
 `RF or network input -> transport/frame decode -> Remote ID message validation -> normalized report -> UAS track`
 
-AeroHub currently supports decoded NDJSON reports through
-`RemoteIdDroneImportRecord` and `local-remote-id-json`. The bundled fixture is
-demonstration data. It does not receive Bluetooth or Wi-Fi broadcasts. Add and test
-a receiver/decoder adapter before describing a deployment as live Remote ID tracking.
+AeroHub currently accepts decoded NDJSON reports through
+`RemoteIdDroneImportRecord` and `local-remote-id-json`, retains individual
+`RemoteIdObservation` records, and projects position-bearing reports into the
+shared aircraft track store. Recent observations are available at
+`GET /api/remote-id/observations` and via SignalR observation events. The bounded
+observation window is in memory and holds at most 1,000 entries. The bundled
+fixture is demonstration data; it does not receive Bluetooth or Wi-Fi broadcasts.
+Add and test a receiver/decoder adapter before describing a deployment as live
+Remote ID tracking.
 
 ## Message and transport model
 
@@ -91,14 +96,15 @@ explicit in the contract.
 
 Validate before updating track state:
 
-- required identifier and valid message/profile encoding
+- required UAS identity and valid message/profile encoding
 - latitude and longitude range, decoded coordinate precision, and invalid/sentinel
   values defined by the applicable profile
 - timestamp freshness, clock skew, and ordering against the current track
 - altitude, speed, direction, and vertical-speed ranges with their units and
   references
 - message/frame integrity and any profile-required authentication checks
-- duplicate or conflicting reports without discarding useful raw evidence
+- duplicate source observation IDs and conflicting reports without discarding
+  useful raw evidence
 
 Use receiver receive time separately from the report's source timestamp. Reject or
 quarantine stale/out-of-order reports according to configured policy; do not let a
@@ -117,6 +123,9 @@ report authenticated merely because its JSON schema is valid.
   when consumers need a distinct lifecycle or retention policy.
 - Keep import diagnostics for malformed, duplicate, stale, invalid-position, and
   out-of-order records. Do not route Remote ID through ACARS parsing.
+- Retain each decoded message as an observation even if it has no position yet.
+  Deduplicate only when a source supplies a stable observation ID; matching
+  payload values alone do not prove two broadcasts are duplicates.
 - Frontend labels must distinguish Remote ID serial/operator values from ICAO,
   callsign, registration, and ADS-B-derived classification. Do not label every
   Remote ID track "commercial"; use an explicit operation category or show it as

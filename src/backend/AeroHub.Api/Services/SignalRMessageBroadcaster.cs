@@ -10,6 +10,7 @@ public sealed class SignalRMessageBroadcaster(
     IImportManager importManager,
     ISyntheticRfStreamService syntheticRfStreamService,
     IAircraftTrackStore aircraftTrackStore,
+    IRemoteIdObservationStore remoteIdObservationStore,
     ISondeTrackStore sondeTrackStore,
     IExternalDecoderProcessManager externalDecoderProcessManager,
     IHardwareSourceManager hardwareSourceManager,
@@ -29,6 +30,7 @@ public sealed class SignalRMessageBroadcaster(
         syntheticRfStreamService.WaterfallRowsProduced += OnWaterfallRowsProduced;
         syntheticRfStreamService.MetricsUpdated += OnStreamMetricsUpdated;
         aircraftTrackStore.TrackUpdated += OnAircraftTrackUpdated;
+        remoteIdObservationStore.ObservationReceived += OnRemoteIdObservationReceived;
         sondeTrackStore.TrackUpdated += OnSondeTrackUpdated;
         externalDecoderProcessManager.DiagnosticReceived += OnExternalDecoderDiagnosticReceived;
         externalDecoderProcessManager.ProcessStateChanged += OnExternalDecoderProcessStateChanged;
@@ -53,6 +55,7 @@ public sealed class SignalRMessageBroadcaster(
         syntheticRfStreamService.WaterfallRowsProduced -= OnWaterfallRowsProduced;
         syntheticRfStreamService.MetricsUpdated -= OnStreamMetricsUpdated;
         aircraftTrackStore.TrackUpdated -= OnAircraftTrackUpdated;
+        remoteIdObservationStore.ObservationReceived -= OnRemoteIdObservationReceived;
         sondeTrackStore.TrackUpdated -= OnSondeTrackUpdated;
         externalDecoderProcessManager.DiagnosticReceived -= OnExternalDecoderDiagnosticReceived;
         externalDecoderProcessManager.ProcessStateChanged -= OnExternalDecoderProcessStateChanged;
@@ -101,6 +104,11 @@ public sealed class SignalRMessageBroadcaster(
     private void OnAircraftTrackUpdated(object? sender, AircraftTrackSnapshot track)
     {
         _ = BroadcastAsync("aircraft.updated", track, track.AircraftIdentifier);
+    }
+
+    private void OnRemoteIdObservationReceived(object? sender, RemoteIdObservation observation)
+    {
+        _ = BroadcastAsync("remote-id.observation", observation, observation.Id);
     }
 
     private void OnSondeTrackUpdated(object? sender, SondeTelemetrySnapshot track)

@@ -27,6 +27,7 @@ builder.Services.AddSingleton<IMessageBus, InMemoryMessageBus>();
 builder.Services.AddSingleton<IAcarsMessageParser, AcarsMessageParser>();
 builder.Services.AddSingleton<IFixtureReplayService, FixtureReplayService>();
 builder.Services.AddSingleton<IAircraftTrackStore, InMemoryAircraftTrackStore>();
+builder.Services.AddSingleton<IRemoteIdObservationStore, InMemoryRemoteIdObservationStore>();
 builder.Services.AddSingleton<IAircraftRegistryLookup, AircraftRegistryLookup>();
 builder.Services.AddSingleton<ISondeTrackStore, InMemorySondeTrackStore>();
 builder.Services.AddSingleton<INavaidService, StaticNavaidService>();
@@ -170,6 +171,11 @@ app.MapGet("/api/imports/diagnostics", (IImportManager importManager, int limit 
 app.MapGet("/api/aircraft", (IAircraftTrackStore aircraftTrackStore) =>
     aircraftTrackStore.GetCurrentTracks())
 .WithName("GetAircraftTracks")
+.WithOpenApi();
+
+app.MapGet("/api/remote-id/observations", (IRemoteIdObservationStore observationStore, int limit = 100) =>
+    observationStore.GetRecent(limit))
+.WithName("GetRemoteIdObservations")
 .WithOpenApi();
 
 app.MapGet("/api/aircraft/{aircraftIdentifier}/history", (string aircraftIdentifier, IRecordStore recordStore, int limit = 300) =>

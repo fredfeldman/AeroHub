@@ -8,6 +8,7 @@ public sealed class AeroHubHub(
     IImportManager importManager,
     ISyntheticRfStreamService syntheticRfStreamService,
     IAircraftTrackStore aircraftTrackStore,
+    IRemoteIdObservationStore remoteIdObservationStore,
     ISondeTrackStore sondeTrackStore,
     IExternalDecoderProcessManager externalDecoderProcessManager,
     IHardwareSourceManager hardwareSourceManager,
@@ -34,6 +35,11 @@ public sealed class AeroHubHub(
     public Task GetAircraftTracks()
     {
         return Clients.Caller.SendAsync("aircraft.snapshot", aircraftTrackStore.GetCurrentTracks());
+    }
+
+    public Task GetRemoteIdObservations(int limit = 100)
+    {
+        return Clients.Caller.SendAsync("remote-id.observation.snapshot", remoteIdObservationStore.GetRecent(limit));
     }
 
     public Task GetSondeTracks()

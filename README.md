@@ -4,12 +4,33 @@ AeroHub is an aviation SDR and aircraft-message analysis application. Its operat
 
 The .NET backend owns ingestion, decoding and import adapters, normalization, storage, and real-time updates. The React + TypeScript frontend presents that data and provides operator controls. Native signal processing and already-decoded data imports are designed to feed the same normalized message and track workflows while retaining source provenance and diagnostics.
 
+## Quick Start
+
+For a packaged Windows build, install `AeroHub-Setup.exe` and launch AeroHub from the Start Menu. The local console is served at `http://localhost:5157`.
+
+To run from source, start the API in one PowerShell terminal from the repository root:
+
+```powershell
+dotnet run --project .\src\backend\AeroHub.Api\AeroHub.Api.csproj --urls http://localhost:5157
+```
+
+Then start the web app in a second terminal:
+
+```powershell
+Set-Location .\src\frontend\AeroHub.Web
+npm install
+npm run dev -- --host 127.0.0.1
+```
+
+Open the local Vite URL shown in the terminal. The frontend proxies API and SignalR requests to the backend. For installation details, operating instructions, and troubleshooting, see the [AeroHub User Guide](AeroHub_UserGuide.md).
+
 ## Operator Console
 
 - **Live RF:** View spectrum and waterfall displays, stream metrics, source health, and adapter diagnostics. Synthetic replay controls exercise the visualization at 1x, 5x, and 20x speeds.
 - **Messages:** Review recent normalized aviation messages, filter by confidence or warnings, inspect parsed ACARS and datalink fields, and copy the original payload. Message details retain transport, frequency, source, and parser warnings when available.
-- **Aircraft map and tracks:** Browse aircraft and radiosonde positions alongside nearby radio navigation aids. Filter aircraft by class, altitude, position availability, and update age; select an aircraft to inspect it, follow its map position, and view its recent track. Export filtered aircraft data as CSV or GeoJSON.
-- **Imports:** Run the included ACARS, ADS-B/readsb, SATCOM, radiosonde, dumphfdl, and dumpvdl2 sample imports. Accepted and quarantined record counts, source provenance, and import diagnostics are surfaced in the console. A dump1090/readsb network connection can also be configured and monitored.
+- **Aircraft map and tracks:** Browse aircraft, Remote ID drone, and radiosonde positions alongside nearby radio navigation aids. Filter aircraft by class, altitude, position availability, and update age; select an aircraft to inspect it, follow its map position, and view its recent track. Export filtered aircraft data as CSV or GeoJSON.
+- **Imports:** Run the included ACARS, ADS-B/readsb, Remote ID, SATCOM, radiosonde, dumphfdl, and dumpvdl2 sample imports. Accepted and quarantined record counts, source provenance, and import diagnostics are surfaced in the console. A dump1090/readsb network connection can also be configured and monitored.
+- **Remote ID observations:** Inspect individual decoded Basic ID, Location/Vector, and other reports, including identity, altitude reference, receiver metadata, validation state, and source-reported authentication when available. Recent observations are a bounded in-memory window; they are not persisted across backend restarts.
 - **Decoder and source operations:** Inspect decoder/import state, configure available source and frequency profiles, and view hardware-source and external-decoder health. Adapter diagnostics and simulated failure/reconnect scenarios help exercise operational status handling.
 - **WEFAX:** Inspect image lines and sync status, adjust polarity and slant, and replay complete or partial sample transmissions.
 - **Settings and storage:** Persist decoder, frequency, import, and feeder settings; inspect storage counts and health; export a data snapshot; and apply configured retention operations.
@@ -32,6 +53,7 @@ The console and backend workflows are implemented, but not every control represe
 - [docs/decoded-data-imports.md](docs/decoded-data-imports.md) - Sprint 4 decoded-data import behavior and quarantine notes.
 - [docs/synthetic-streams.md](docs/synthetic-streams.md) - Sprint 5 synthetic RF stream contracts and replay budgets.
 - [docs/adsb-tracks.md](docs/adsb-tracks.md) - Sprint 6 ADS-B/readsb import and aircraft-track behavior.
+- [docs/commercial-drone-tracking.md](docs/commercial-drone-tracking.md) - Remote ID sample import, observation fields, and track behavior.
 - [docs/external-decoder-adapters.md](docs/external-decoder-adapters.md) - Sprint 7 dumphfdl/dumpvdl2 adapter and process supervision behavior.
 - [docs/datalink-satcom-models.md](docs/datalink-satcom-models.md) - Sprint 8 CPDLC/ADS-C/SATCOM detail models.
 - [docs/wefax-image-decoder.md](docs/wefax-image-decoder.md) - Sprint 9 WEFAX synthetic image decoder skeleton.
